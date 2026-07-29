@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: aisist-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - SUPABASE_URL=https://erbhmrbldkposhzzafgx.supabase.co
+      - SUPABASE_KEY=sb_publishable_Fo5gczQkro55Ma-0CyvCSQ_Sv75qWxW
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    command: sh -c "npm install && npm run dev"
+    networks:
+      - app-network
+    restart: always
+
+  frontend:
+    build: ./AISist
+    container_name: aisist-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NUXT_PUBLIC_API_BASE=http://localhost:3001
+      - NODE_ENV=development
+    volumes:
+      - ./AISist:/app
+      - /app/node_modules
+      - /app/.nuxt
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: always
+
+networks:
+  app-network:
+    driver: bridge

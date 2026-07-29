@@ -1,0 +1,27 @@
+{
+  "name": "AISist",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "apexcharts": "^6.6.1",
+    "axios": "^1.18.1",
+    "nuxt": "^4.5.0",
+    "vite-plugin-vuetify": "^2.1.3",
+    "vue": "^3.5.40",
+    "vue-router": "^5.2.0",
+    "vue3-apexcharts": "^1.11.1"
+  },
+  "devDependencies": {
+    "sass": "^1.102.0",
+    "vuetify": "^4.1.6",
+    "vuetify-nuxt-module": "^1.0.0-rc.3"
+  }
+}
