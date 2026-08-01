@@ -1,7 +1,6 @@
 version: "3.8"
 
 services:
-# test
   backend:
     build: ./backend
     container_name: aisist-backend
@@ -9,8 +8,9 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - SUPABASE_URL=https://erbhmrbldkposhzzafgx.supabase.co
-      - SUPABASE_KEY=sb_publishable_Fo5gczQkro55Ma-0CyvCSQ_Sv75qWxW
+      # ดึงค่าจากไฟล์ .env
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
     volumes:
       - ./backend:/usr/src/app
       - /usr/src/app/node_modules
@@ -26,8 +26,16 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - NUXT_PUBLIC_API_BASE=http://localhost:3001
       - NODE_ENV=development
+      # สำหรับ Client (Browser) ยิง API ไปที่ Backend
+      - NUXT_PUBLIC_API_BASE=http://localhost:3001
+      # สำหรับ Server (Nuxt SSR) ใน Docker ยิง API ไปที่ Backend
+      - NUXT_API_BASE=http://backend:3001
+      # ดึงค่าจากไฟล์ .env ทั้งหมด
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - NUXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NUXT_PUBLIC_SUPABASE_KEY=${SUPABASE_KEY}
     volumes:
       - ./AISist:/app
       - /app/node_modules

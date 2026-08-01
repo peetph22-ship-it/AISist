@@ -1,0 +1,16 @@
+const { createClient } = require('@supabase/supabase-js')
+
+// ดึงค่า URL และ Key จาก Environment Variables (ที่ Docker ส่งมาให้)
+const suapbaseUrl = process.env.SUPABASE_URL
+const suapbaseKey = process.env.SUPABASE_KEY
+
+// create Connect
+const supabase = createClient( supabaseUrl , supabaseKey )
+
+// func API Controller
+const getAllUsers = async () => {
+    // ดึงข้อมูลจากฐานข้อมูล
+    const { data,error } = await supabase
+    .from('profiles')
+    .select('id,name')
+}
