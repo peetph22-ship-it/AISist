@@ -1,0 +1,64 @@
+แยกเป็นส่วนๆ
+
+controller file
+1.sql เช่น
+const sql = `
+            INSERT INTO tb_student (id_student, name, last_name, date_of_birth, school, username, password) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            RETURNING id_student, name, username;
+        `;
+
+2.value เช่น
+const values = [id_student, name, last_name, date_of_birth, school, username, hash];
+
+3.รวม เช่น
+const { rows } = await pool.query(sql, values);
+
+4.return status and return data
+
+สิ่งที่ควรรู้
+*Library postgreSQL = no ? => $1,$2
+
+
+**ตัวอย่างไฟล์**
+const pool = require("../config/db");
+const bcrypt = require('bcrypt');
+
+// เปลี่ยนจาก router.post เป็นการสร้างฟังก์ชัน (Arrow Function)
+const registerStudent = async (req, res) => {
+    try {
+        const { id_student, name, last_name, date_of_birth, school, username, password } = req.body;
+
+        if (!id_student || !username || !password || !name || !last_name || !date_of_birth) {
+            return res.status(400).json({ success: false, message: 'Error Data Input! ข้อมูลไม่ครบถ้วน' });
+        }
+
+        const numHash = 10;
+        const hash = await bcrypt.hash(password, numHash);
+
+        const sql = `
+            INSERT INTO tb_student (id_student, name, last_name, date_of_birth, school, username, password) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            RETURNING id_student, name, username;
+        `;
+        const values = [id_student, name, last_name, date_of_birth, school, username, hash];
+
+        const { rows } = await pool.query(sql, values);
+
+        res.status(201).json({ 
+            success: true, 
+            message: 'Register Success !',
+            data: rows[0] 
+        });
+
+    } catch (err) {
+        console.error("Error Register ! :", err);
+        if (err.code === '23505') {
+            return res.status(409).json({ success: false, message: 'ID หรือ Username นี้มีในระบบแล้ว!' });
+        }
+        res.status(500).json({ success: false, message: 'Error , Register !' });
+    }
+};
+
+// ส่งออกฟังก์ชัน
+module.exports = { registerStudent };

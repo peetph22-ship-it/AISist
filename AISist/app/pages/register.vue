@@ -7,6 +7,7 @@ useSeoMeta({
 const supabase = useSupabaseClient()
 
 const form = ref()
+const username = ref('')
 const displayName = ref('')
 const email = ref('')
 const password = ref('')
@@ -31,6 +32,7 @@ const register = async () => {
       password: password.value,
       options: {
         data: {
+          username: username.value.trim(),
           display_name: displayName.value.trim(),
           role: 'student',
         },
@@ -172,6 +174,20 @@ const register = async () => {
             class="register-form"
             @submit.prevent="register"
           >
+            <div class="field-group">
+              <label class="field-label">ชื่อผู้ใช้ (Username)</label>
+              <v-text-field
+                v-model="username"
+                placeholder="เช่น min_student"
+                prepend-inner-icon="mdi-account-circle-outline"
+                autocomplete="username"
+                variant="outlined"
+                density="comfortable"
+                color="primary"
+                :disabled="loading || Boolean(successMessage)"
+              />
+            </div>
+
             <div class="field-group">
               <label class="field-label">ชื่อที่ต้องการให้แสดง</label>
               <v-text-field

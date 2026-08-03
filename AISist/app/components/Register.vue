@@ -11,6 +11,7 @@ const { isOpen: dialog, close: closeModalState } = useRegisterModal()
 const supabase = useSupabaseClient()
 
 const form = ref()
+const username = ref('')
 const name = ref('')
 const email = ref('')
 const password = ref('')
@@ -38,6 +39,7 @@ const termsRule = (value: boolean | null) =>
   value === true || 'กรุณายอมรับข้อตกลงก่อนสมัครสมาชิก'
 
 const resetForm = () => {
+  username.value = ''
   name.value = ''
   email.value = ''
   password.value = ''
@@ -65,14 +67,14 @@ const emailReget = /^[^\s]+@[^\s]+\.[^\s]{2,}$/i
 
 function validateForm () {
   error.value = {}
-  const f = form.value
-  if(!f.name.trim()) error.value.name = 'กรุณากรอกชื่อ'
-  if(!f.email.trim()) error.value.email = 'กรุณากรอกอีเมล'
-  else if(!emailReget.test(f.email.trim())) error.value.email = 'รูปแบบอีเมลไม่ถูกต้อง'
-  if(!f.password.trim()) error.value.password = 'กรุณากรอกรหัสผ่าน'
-  else if(f.password.trim().length < 6)error.value.password='ต้องมีอย่างน้อย 6 ตัวอักษร'
-  if(!f.confirmPassword.value.trim()) error.value.confirmPassword = 'กรุณายืนยันรหัสผ่าน'
-  else if(!f.confirmPassword.value.trim() != f.password.trim()) error.value.confirmPassword = 'รหัสผ่านไม่ตรงกัน'
+  if (!username.value?.trim()) error.value.username = 'กรุณากรอกชื่อผู้ใช้ (Username)'
+  if (!name.value?.trim()) error.value.name = 'กรุณากรอกชื่อที่ต้องการให้แสดง'
+  if (!email.value?.trim()) error.value.email = 'กรุณากรอกอีเมล'
+  else if (!emailReget.test(email.value.trim())) error.value.email = 'รูปแบบอีเมลไม่ถูกต้อง'
+  if (!password.value?.trim()) error.value.password = 'กรุณากรอกรหัสผ่าน'
+  else if (password.value.trim().length < 6) error.value.password = 'ต้องมีอย่างน้อย 6 ตัวอักษร'
+  if (!confirmPassword.value?.trim()) error.value.confirmPassword = 'กรุณายืนยันรหัสผ่าน'
+  else if (confirmPassword.value.trim() !== password.value.trim()) error.value.confirmPassword = 'รหัสผ่านไม่ตรงกัน'
   return Object.keys(error.value).length === 0
 }
 
@@ -80,16 +82,24 @@ const registerSubmit = async () => {
   errorMessage.value = ''
   successMessage.value = ''
   
-  if(!validateForm()) return
+  if (!validateForm()) return
 
-  try{
-    await axios.post(`${api}/auth/register`)
+  loading.value = true
+  try {
+    await axios.post(`${api}/auth/register`, {
+      username: username.value.trim(),
+      name: name.value.trim(),
+      email: email.value.trim(),
+      password: password.value,
+    })
     alert("สมัครสมาชิกสำเร็จ")
-    navigateTo('/',{replace:true})
-  }catch{
-    console.error("Error , Regisrer Member!")
+    navigateTo('/', { replace: true })
+  } catch (err) {
+    console.error("Error, Register Member!", err)
+    errorMessage.value = 'ไม่สามารถสมัครสมาชิกได้ในขณะนี้'
+  } finally {
+    loading.value = false
   }
-
 }
 
 onMounted(() => {
@@ -131,26 +141,27 @@ onMounted(() => {
         </v-alert>
 
         <v-form ref="form" class="register-form" @submit.prevent="registerSubmit">
+          <v-text-field v-model="username" label="ชื่อผู้ใช้ (Username)" placeholder="เช่น min_student"
+            prepend-inner-icon="mdi-account-circle-outline" autocomplete="username" variant="outlined" density="comfortable"
+            color="primary" :error-messages="error.username" />
+
           <v-text-field v-model="name" label="ชื่อที่ต้องการให้แสดง" placeholder="เช่น น้องมินท์"
             prepend-inner-icon="mdi-account-outline" autocomplete="name" variant="outlined" density="comfortable"
-            color="primary" />
+            color="primary" :error-messages="error.name" />
 
           <v-text-field v-model="email" type="email" label="อีเมล" placeholder="example@email.com"
             prepend-inner-icon="mdi-email-outline" autocomplete="email" variant="outlined" density="comfortable"
-            color="primary" />
+            color="primary" :error-messages="error.email" />
 
           <v-text-field v-model="password" :type="showPassword ? 'text' : 'password'" label="รหัสผ่าน"
-            hint="ต้องมีอย่างน้อย 6 ตัวอักษร" prepend-inner-icon="mdi-lock-outline" :append-inner-icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'
-              " autocomplete="new-password" variant="outlined" density="comfortable" color="primary" @click:append-inner="showPassword = !showPassword" />
+            hint="ต้องมีอย่างน้อย 6 ตัวอักษร" prepend-inner-icon="mdi-lock-outline" :append-inner-icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+            autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
+            :error-messages="error.password" @click:append-inner="showPassword = !showPassword" />
 
           <v-text-field v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
-            label="ยืนยันรหัสผ่าน" prepend-inner-icon="mdi-lock-check-outline" :append-inner-icon="showConfirmPassword
-                ? 'mdi-eye-off-outline'
-                : 'mdi-eye-outline'
-              " autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
-            :rules="[confirmPasswordRule]" :disabled="loading || Boolean(successMessage)" @click:append-inner="
-              showConfirmPassword = !showConfirmPassword
-              " />
+            label="ยืนยันรหัสผ่าน" prepend-inner-icon="mdi-lock-check-outline" :append-inner-icon="showConfirmPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+            autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
+            :error-messages="error.confirmPassword" @click:append-inner="showConfirmPassword = !showConfirmPassword" />
 
           <v-checkbox v-model="acceptTerms" color="primary" density="compact" class="terms-checkbox"
             :rules="[termsRule]" :disabled="loading || Boolean(successMessage)">

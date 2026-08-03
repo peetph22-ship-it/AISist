@@ -9,7 +9,7 @@ app.use(cors({
     credentials:true
 }))
 
-app.use(express.josn())
+app.use(express.json())
 
 // Check 
 app.use((req,res) => res.status(404).json({message:'Invalid Route'}))
