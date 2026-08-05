@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import axios from 'axios'
+import { api } from '../API/base'
+
 useSeoMeta({
   title: 'เข้าสู่ระบบ | AISist',
   description: 'เข้าสู่ระบบเพื่อใช้งานแพลตฟอร์ม AISist วางแผนการเรียนรู้ และติดตามความคืบหน้าของคุณ',
@@ -15,11 +18,7 @@ const loading = ref(false)
 const errorMessage = ref('')
 
 const emailRule = (value: string) => {
-  if (!value?.trim()) {
-    return 'กรุณากรอกอีเมล'
-  }
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailPattern.test(value) || 'รูปแบบอีเมลไม่ถูกต้อง'
+  return Boolean(value?.trim()) || 'กรุณากรอกอีเมลหรือชื่อผู้ใช้'
 }
 
 const passwordRule = (value: string) =>
@@ -29,12 +28,42 @@ const login = async () => {
   errorMessage.value = ''
   const validation = await form.value?.validate()
   if (!validation?.valid) {
+    errorMessage.value = 'กรุณากรอกข้อมูลในช่องที่จำเป็นให้ถูกต้อง'
     return
   }
 
   loading.value = true
 
+  const authToken = useCookie('auth_token', { maxAge: 60 * 60 * 24 })
+
   try {
+    // 1. Try Express Backend Login API
+    try {
+      const response = await axios.post(`${api}/registerStudent/login`, {
+        email: email.value.trim(),
+        username: email.value.trim(),
+        password: password.value,
+      })
+
+      if (response.data?.success) {
+        if (response.data.token) {
+          authToken.value = response.data.token
+          if (import.meta.client) {
+            localStorage.setItem('auth_token', response.data.token)
+          }
+        }
+        await navigateTo('/student')
+        return
+      }
+    } catch (backendErr: any) {
+      if (backendErr.response?.status === 401) {
+        errorMessage.value = backendErr.response?.data?.message || 'อีเมล/ชื่อผู้ใช้ หรือรหัสผ่านไม่ถูกต้อง'
+        return
+      }
+      console.warn("Backend API login failed or offline, trying Supabase fallback...", backendErr)
+    }
+
+    // 2. Supabase Auth Fallback
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.value.trim(),
       password: password.value,
@@ -42,7 +71,7 @@ const login = async () => {
 
     if (error) {
       if (error.message.toLowerCase().includes('invalid login credentials')) {
-        errorMessage.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
+        errorMessage.value = 'อีเมล/ชื่อผู้ใช้ หรือรหัสผ่านไม่ถูกต้อง'
       } else {
         errorMessage.value = error.message
       }
@@ -50,13 +79,19 @@ const login = async () => {
     }
 
     if (data.session) {
+      if (data.session.access_token) {
+        authToken.value = data.session.access_token
+        if (import.meta.client) {
+          localStorage.setItem('auth_token', data.session.access_token)
+        }
+      }
       await navigateTo('/student')
     }
   } catch (err) {
     console.error('Login error:', err)
     errorMessage.value = 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'
   } finally {
-    loading.value = false
+    loading.value = false 
   }
 }
 </script>
@@ -92,13 +127,12 @@ const login = async () => {
           @submit.prevent="login"
         >
           <div class="field-group">
-            <label class="field-label">อีเมล</label>
+            <label class="field-label">อีเมล หรือ ชื่อผู้ใช้</label>
             <v-text-field
               v-model="email"
-              type="email"
-              placeholder="example@email.com"
-              prepend-inner-icon="mdi-email-outline"
-              autocomplete="email"
+              placeholder="example@email.com หรือ username"
+              prepend-inner-icon="mdi-account-outline"
+              autocomplete="username"
               variant="outlined"
               density="comfortable"
               color="primary"

@@ -1,4 +1,14 @@
 export default defineNuxtConfig({
+  alias: {
+    cookie: 'cookie-es',
+  },
+
+  vite: {
+    optimizeDeps: {
+      include: ['cookie-es', '@supabase/ssr'],
+    },
+  },
+
   modules: [
     'vuetify-nuxt-module',
     '@nuxtjs/supabase',

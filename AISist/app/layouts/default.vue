@@ -20,16 +20,32 @@ const avatarText = computed(() => {
   return displayName.value.trim().charAt(0).toUpperCase() || 'A'
 })
 
+import axios from 'axios'
+import { api } from '../API/base'
+
+const authToken = useCookie('auth_token')
+
+const isLoggedIn = computed(() => {
+  return Boolean(user.value || authToken.value)
+})
+
 const logout = async () => {
   profileMenu.value = false
 
-  const { error } = await supabase.auth.signOut()
-
-  if (error) {
-    console.error('ไม่สามารถออกจากระบบได้:', error.message)
-    return
+  // Kill JWT Token
+  authToken.value = null
+  if (import.meta.client) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user')
   }
 
+  try {
+    await axios.post(`${api}/registerStudent/logout`)
+  } catch (err) {
+    // backend logout API error handled silently
+  }
+
+  await supabase.auth.signOut()
   await navigateTo('/')
 }
 </script>
@@ -52,24 +68,26 @@ const logout = async () => {
             หน้าหลัก
           </NuxtLink>
 
-          <NuxtLink to="/roadmap">
-            <v-icon icon="mdi-map-marker-path" size="17" />
-            แผนการเรียน
-          </NuxtLink>
+          <template v-if="isLoggedIn">
+            <NuxtLink to="/roadmap">
+              <v-icon icon="mdi-map-marker-path" size="17" />
+              แผนการเรียน
+            </NuxtLink>
 
-          <NuxtLink to="/assessment">
-            <v-icon icon="mdi-chart-box-outline" size="17" />
-            ประเมินทักษะ
-          </NuxtLink>
+            <NuxtLink to="/assessment">
+              <v-icon icon="mdi-chart-box-outline" size="17" />
+              ประเมินทักษะ
+            </NuxtLink>
 
-          <NuxtLink to="/mentors">
-            <v-icon icon="mdi-account-tie" size="17" />
-            พี่เลี้ยง
-          </NuxtLink>
+            <NuxtLink to="/mentors">
+              <v-icon icon="mdi-account-tie" size="17" />
+              พี่เลี้ยง
+            </NuxtLink>
+          </template>
         </nav>
 
         <!-- ยังไม่ได้เข้าสู่ระบบ -->
-        <div v-if="!user" class="header-actions guest-actions">
+        <div v-if="!isLoggedIn" class="header-actions guest-actions">
           <v-btn to="/login" variant="text" class="login-button" prepend-icon="mdi-login">
             เข้าสู่ระบบ
           </v-btn>

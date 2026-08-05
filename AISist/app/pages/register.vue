@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import axios from 'axios'
 useSeoMeta({
   title: 'สมัครสมาชิก | AISist',
   description: 'สร้างบัญชีผู้ใช้ AISist เพื่อเริ่มต้นค้นหาเป้าหมาย วางแผนการเรียนรู้ และประเมินทักษะอย่างมีประสิทธิภาพ',
@@ -7,12 +8,21 @@ useSeoMeta({
 const supabase = useSupabaseClient()
 
 const form = ref()
+const activeTab = ref<'student' | 'mentor'>('student')
 const username = ref('')
 const displayName = ref('')
+const degreeLevel = ref('')
+const degreeLevels = [
+  'มัธยมศึกษาตอนปลาย',
+  'ปวช. / ปวส.',
+  'ปริญญาตรี',
+  'ปริญญาโท',
+  'ปริญญาเอก',
+  'อื่นๆ',
+]
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const acceptTerms = ref(false)
 
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
@@ -20,9 +30,33 @@ const loading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const usernameRule = (v: string) => Boolean(v?.trim()) || 'กรุณากรอกชื่อผู้ใช้ (Username)'
+const displayNameRule = (v: string) => Boolean(v?.trim()) || 'กรุณากรอกชื่อที่ต้องการให้แสดง'
+const degreeLevelRule = (v: string) => Boolean(v?.trim()) || 'กรุณาเลือกระดับการศึกษา'
+const emailRule = (v: string) => {
+  if (!v?.trim()) return 'กรุณากรอกอีเมล'
+  return emailPattern.test(v) || 'รูปแบบอีเมลไม่ถูกต้อง'
+}
+const passwordRule = (v: string) => {
+  if (!v) return 'กรุณากรอกรหัสผ่าน'
+  return v.length >= 6 || 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'
+}
+const confirmPasswordRule = (v: string) => {
+  if (!v) return 'กรุณายืนยันรหัสผ่าน'
+  return v === password.value || 'รหัสผ่านไม่ตรงกัน'
+}
+
 const register = async () => {
   errorMessage.value = ''
   successMessage.value = ''
+
+  const validation = await form.value?.validate()
+  if (!validation?.valid) {
+    errorMessage.value = 'กรุณากรอกข้อมูลในช่องที่จำเป็นให้ถูกต้องและครบถ้วน'
+    return
+  }
 
   loading.value = true
 
@@ -34,7 +68,8 @@ const register = async () => {
         data: {
           username: username.value.trim(),
           display_name: displayName.value.trim(),
-          role: 'student',
+          degree_level: activeTab.value === 'mentor' ? degreeLevel.value : undefined,
+          role: activeTab.value,
         },
       },
     })
@@ -48,6 +83,37 @@ const register = async () => {
         errorMessage.value = error.message
       }
       return
+    }
+
+    try {
+      const endpoint = activeTab.value === 'mentor'
+        ? 'http://localhost:3001/api/registerStudent/registerMentor'
+        : 'http://localhost:3001/api/registerStudent/register'
+
+      const payload = activeTab.value === 'mentor'
+        ? {
+          username: username.value.trim(),
+          name: displayName.value.trim(),
+          last_name: '-',
+          date_of_birth: '2000-01-01',
+          degree_level: degreeLevel.value,
+          password: password.value,
+          email: email.value.trim(),
+        }
+        : {
+          username: username.value.trim(),
+          name: displayName.value.trim(),
+          last_name: '-',
+          date_of_birth: '2000-01-01',
+          school: '-',
+          password: password.value,
+          email: email.value.trim(),
+        }
+
+      await axios.post(endpoint, payload)
+      console.log('Register success !')
+    } catch (backendError) {
+      console.warn('Backend server ไม่ได้เปิดอยู่ หรือไม่สามารถเชื่อมต่อฐานข้อมูลได้:', backendError)
     }
 
     if (data.session) {
@@ -147,159 +213,89 @@ const register = async () => {
             <p>กรอกข้อมูลสั้น ๆ เพื่อเริ่มวางแผนการเรียนรู้กับเรา</p>
           </div>
 
-          <v-alert
-            v-if="errorMessage"
-            type="error"
-            variant="tonal"
-            density="comfortable"
-            closable
-            class="mb-4"
-            @click:close="errorMessage = ''"
-          >
+          <v-tabs v-model="activeTab" color="primary" grow class="register-tabs mb-4">
+            <v-tab value="student">
+              <v-icon icon="mdi-school-outline" class="mr-1" />
+              นักเรียน / นักศึกษา
+            </v-tab>
+
+            <v-tab value="mentor">
+              <v-icon icon="mdi-account-tie" class="mr-1" />
+              พี่เลี้ยง / Mentor
+            </v-tab>
+          </v-tabs>
+
+          <v-alert v-if="errorMessage" type="error" variant="tonal" density="comfortable" closable class="mb-4"
+            @click:close="errorMessage = ''">
             {{ errorMessage }}
           </v-alert>
 
-          <v-alert
-            v-if="successMessage"
-            type="success"
-            variant="tonal"
-            density="comfortable"
-            class="mb-4"
-          >
+          <v-alert v-if="successMessage" type="success" variant="tonal" density="comfortable" class="mb-4">
             {{ successMessage }}
           </v-alert>
 
-          <v-form
-            ref="form"
-            class="register-form"
-            @submit.prevent="register"
-          >
+          <v-form ref="form" class="register-form" @submit.prevent="register">
             <div class="field-group">
               <label class="field-label">ชื่อผู้ใช้ (Username)</label>
-              <v-text-field
-                v-model="username"
-                placeholder="เช่น min_student"
-                prepend-inner-icon="mdi-account-circle-outline"
-                autocomplete="username"
-                variant="outlined"
-                density="comfortable"
-                color="primary"
-                :disabled="loading || Boolean(successMessage)"
-              />
+              <v-text-field v-model="username" placeholder="เช่น min_student"
+                prepend-inner-icon="mdi-account-circle-outline" autocomplete="username" variant="outlined"
+                density="comfortable" color="primary" :rules="[usernameRule]"
+                :disabled="loading || Boolean(successMessage)" />
             </div>
 
             <div class="field-group">
               <label class="field-label">ชื่อที่ต้องการให้แสดง</label>
-              <v-text-field
-                v-model="displayName"
-                placeholder="เช่น น้องมินท์"
-                prepend-inner-icon="mdi-account-outline"
-                autocomplete="name"
-                variant="outlined"
-                density="comfortable"
-                color="primary"
-                :disabled="loading || Boolean(successMessage)"
-              />
+              <v-text-field v-model="displayName" placeholder="เช่น พี่ตูมตามวิศวะ" prepend-inner-icon="mdi-account-outline"
+                autocomplete="name" variant="outlined" density="comfortable" color="primary" :rules="[displayNameRule]"
+                :disabled="loading || Boolean(successMessage)" />
+            </div>
+
+            <div v-if="activeTab === 'mentor'" class="field-group">
+              <label class="field-label">ระดับการศึกษา (Degree Level)</label>
+              <v-select v-model="degreeLevel" :items="degreeLevels" placeholder="กรุณาเลือกระดับการศึกษา" persistent-placeholder
+                prepend-inner-icon="mdi-certificate-outline" variant="outlined" density="comfortable" color="primary"
+                :rules="[degreeLevelRule]" :disabled="loading || Boolean(successMessage)" />
             </div>
 
             <div class="field-group">
               <label class="field-label">อีเมล</label>
-              <v-text-field
-                v-model="email"
-                type="email"
-                placeholder="example@email.com"
-                prepend-inner-icon="mdi-email-outline"
-                autocomplete="email"
-                variant="outlined"
-                density="comfortable"
-                color="primary"
-                :disabled="loading || Boolean(successMessage)"
-              />
+              <v-text-field v-model="email" type="email" placeholder="example@email.com"
+                prepend-inner-icon="mdi-email-outline" autocomplete="email" variant="outlined" density="comfortable"
+                color="primary" :rules="[emailRule]" :disabled="loading || Boolean(successMessage)" />
             </div>
 
             <div class="field-group">
               <label class="field-label">รหัสผ่าน</label>
-              <v-text-field
-                v-model="password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="ต้องมีอย่างน้อย 6 ตัวอักษร"
-                prepend-inner-icon="mdi-lock-outline"
-                autocomplete="new-password"
-                variant="outlined"
-                density="comfortable"
-                color="primary"
-                :disabled="loading || Boolean(successMessage)"
-              >
+              <v-text-field v-model="password" :type="showPassword ? 'text' : 'password'"
+                placeholder="ต้องมีอย่างน้อย 6 ตัวอักษร" prepend-inner-icon="mdi-lock-outline"
+                autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
+                :rules="[passwordRule]" :disabled="loading || Boolean(successMessage)">
                 <template #append-inner>
-                  <v-icon
-                    :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
-                    style="cursor: pointer;"
-                    @click="showPassword = !showPassword"
-                  />
+                  <v-icon :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" style="cursor: pointer;"
+                    @click="showPassword = !showPassword" />
                 </template>
               </v-text-field>
             </div>
 
             <div class="field-group">
               <label class="field-label">ยืนยันรหัสผ่าน</label>
-              <v-text-field
-                v-model="confirmPassword"
-                :type="showConfirmPassword ? 'text' : 'password'"
-                placeholder="พิมพ์รหัสผ่านอีกครั้ง"
-                prepend-inner-icon="mdi-lock-check-outline"
-                autocomplete="new-password"
-                variant="outlined"
-                density="comfortable"
-                color="primary"
-                :disabled="loading || Boolean(successMessage)"
-              >
+              <v-text-field v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
+                placeholder="พิมพ์รหัสผ่านอีกครั้ง" prepend-inner-icon="mdi-lock-check-outline"
+                autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
+                :rules="[confirmPasswordRule]" :disabled="loading || Boolean(successMessage)">
                 <template #append-inner>
-                  <v-icon
-                    :icon="showConfirmPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
-                    style="cursor: pointer;"
-                    @click="showConfirmPassword = !showConfirmPassword"
-                  />
+                  <v-icon :icon="showConfirmPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+                    style="cursor: pointer;" @click="showConfirmPassword = !showConfirmPassword" />
                 </template>
               </v-text-field>
             </div>
 
-            <v-checkbox
-              v-model="acceptTerms"
-              color="primary"
-              density="compact"
-              class="terms-checkbox"
-              :disabled="loading || Boolean(successMessage)"
-            >
-              <template #label>
-                <span class="terms-text">
-                  ยอมรับ
-                  <NuxtLink to="/terms" target="_blank" @click.stop>ข้อตกลงการใช้งาน</NuxtLink>
-                  และ
-                  <NuxtLink to="/privacy" target="_blank" @click.stop>นโยบายความเป็นส่วนตัว</NuxtLink>
-                </span>
-              </template>
-            </v-checkbox>
-
-            <v-btn
-              v-if="!successMessage"
-              type="submit"
-              block
-              size="large"
-              class="submit-button"
-              :loading="loading"
-            >
+            <v-btn v-if="!successMessage" type="submit" block size="large" class="submit-button" :loading="loading">
               <v-icon icon="mdi-account-plus-outline" size="19" class="mr-2" />
               สมัครสมาชิก
             </v-btn>
 
-            <v-btn
-              v-else
-              to="/student"
-              block
-              size="large"
-              color="primary"
-              variant="tonal"
-            >
+            <v-btn v-else to="/student" block size="large" color="primary" variant="tonal">
               ไปที่หน้าหลักของฉัน
             </v-btn>
           </v-form>

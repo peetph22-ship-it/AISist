@@ -1,1 +1,17 @@
 ** ตัวอย่างไฟล์ **
+// ไฟล์: routes/auth.js
+const express = require('express');
+const router = express.Router();
+
+// 1. นำเข้า Controller ที่เราเพิ่งเขียนเสร็จ
+// (เช็คพาร์ท ../controllers/registerController ให้ตรงกับโฟลเดอร์ของคุณนะครับ)
+const { registerStudent } = require('../controllers/registerController');
+
+// 2. สร้างเส้นทาง (Route)
+// เมื่อมีคนยิงคำสั่ง POST มาที่ /register ให้เรียกใช้ฟังก์ชัน registerStudent
+router.post('/register', registerStudent);
+
+// (ในอนาคตถ้ามีฟังก์ชัน Login ก็มาเขียนต่อตรงนี้ได้เลย เช่น router.post('/login', loginStudent))
+
+// 3. ส่งออกตัว router ไปให้ไฟล์หลักใช้งาน
+module.exports = router;

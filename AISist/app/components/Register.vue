@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import axios from 'axios'
-import {api} from '../API/base'
+import { api } from '../API/base'
 
 const emit = defineEmits<{
   success: []
@@ -13,13 +13,26 @@ const supabase = useSupabaseClient()
 const form = ref()
 const username = ref('')
 const name = ref('')
+const lastName = ref('')
+const dateOfBirth = ref('')
+const school = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const acceptTerms = ref(false)
+
+const activeTab = ref<'student' | 'mentor'>('student')
+const degreeLevel = ref('')
+const degreeLevels = [
+  'มัธยมศึกษาตอนปลาย',
+  'ปวช. / ปวส.',
+  'ปริญญาตรี',
+  'ปริญญาโท',
+  'ปริญญาเอก',
+  'อื่นๆ',
+]
 
 // error message
-const error = ref<Record<string,string>>({})
+const error = ref<Record<string, string>>({})
 
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
@@ -35,16 +48,17 @@ const confirmPasswordRule = (value: string) => {
   return value === password.value || 'รหัสผ่านไม่ตรงกัน'
 }
 
-const termsRule = (value: boolean | null) =>
-  value === true || 'กรุณายอมรับข้อตกลงก่อนสมัครสมาชิก'
-
 const resetForm = () => {
+  activeTab.value = 'student'
   username.value = ''
   name.value = ''
+  lastName.value = ''
+  dateOfBirth.value = ''
+  school.value = ''
+  degreeLevel.value = ''
   email.value = ''
   password.value = ''
   confirmPassword.value = ''
-  acceptTerms.value = false
 
   showPassword.value = false
   showConfirmPassword.value = false
@@ -65,38 +79,91 @@ const closeModal = () => {
 // ValidateForm
 const emailReget = /^[^\s]+@[^\s]+\.[^\s]{2,}$/i
 
-function validateForm () {
+function validateForm() {
   error.value = {}
   if (!username.value?.trim()) error.value.username = 'กรุณากรอกชื่อผู้ใช้ (Username)'
-  if (!name.value?.trim()) error.value.name = 'กรุณากรอกชื่อที่ต้องการให้แสดง'
+  if (!name.value?.trim()) error.value.name = 'กรุณากรอกชื่อ'
+  if (!lastName.value?.trim()) error.value.lastName = 'กรุณากรอกนามสกุล'
+  if (!dateOfBirth.value?.trim()) error.value.dateOfBirth = 'กรุณาเลือกวันเดือนปีเกิด'
+  if (activeTab.value === 'mentor' && !degreeLevel.value?.trim()) {
+    error.value.degreeLevel = 'กรุณาเลือกระดับการศึกษา'
+  }
   if (!email.value?.trim()) error.value.email = 'กรุณากรอกอีเมล'
   else if (!emailReget.test(email.value.trim())) error.value.email = 'รูปแบบอีเมลไม่ถูกต้อง'
   if (!password.value?.trim()) error.value.password = 'กรุณากรอกรหัสผ่าน'
   else if (password.value.trim().length < 6) error.value.password = 'ต้องมีอย่างน้อย 6 ตัวอักษร'
   if (!confirmPassword.value?.trim()) error.value.confirmPassword = 'กรุณายืนยันรหัสผ่าน'
   else if (confirmPassword.value.trim() !== password.value.trim()) error.value.confirmPassword = 'รหัสผ่านไม่ตรงกัน'
-  return Object.keys(error.value).length === 0
+
+  const isValid = Object.keys(error.value).length === 0
+  if (!isValid) {
+    errorMessage.value = 'กรุณากรอกข้อมูลในช่องที่จำเป็นให้ถูกต้องและครบถ้วน'
+  }
+  return isValid
 }
 
 const registerSubmit = async () => {
   errorMessage.value = ''
   successMessage.value = ''
-  
+
   if (!validateForm()) return
 
   loading.value = true
   try {
-    await axios.post(`${api}/auth/register`, {
-      username: username.value.trim(),
-      name: name.value.trim(),
-      email: email.value.trim(),
-      password: password.value,
-    })
+    if (activeTab.value === 'mentor') {
+      await axios.post(`${api}/registerStudent/registerMentor`, {
+        username: username.value.trim(),
+        name: name.value.trim(),
+        last_name: lastName.value.trim(),
+        date_of_birth: dateOfBirth.value,
+        degree_level: degreeLevel.value,
+        password: password.value,
+        email: email.value.trim(),
+      })
+    } else {
+      await axios.post(`${api}/registerStudent/register`, {
+        username: username.value.trim(),
+        name: name.value.trim(),
+        last_name: lastName.value.trim(),
+        date_of_birth: dateOfBirth.value,
+        school: school.value.trim(),
+        password: password.value,
+        email: email.value.trim(),
+      })
+    }
     alert("สมัครสมาชิกสำเร็จ")
     navigateTo('/', { replace: true })
-  } catch (err) {
-    console.error("Error, Register Member!", err)
-    errorMessage.value = 'ไม่สามารถสมัครสมาชิกได้ในขณะนี้'
+  } catch (err: any) {
+    console.warn("Backend API error or server offline, trying Supabase auth fallback...", err)
+    
+    // Supabase Auth Fallback
+    try {
+      const { data: supaData, error: supaErr } = await supabase.auth.signUp({
+        email: email.value.trim(),
+        password: password.value,
+        options: {
+          data: {
+            username: username.value.trim(),
+            display_name: name.value.trim(),
+            last_name: lastName.value.trim(),
+            date_of_birth: dateOfBirth.value,
+            school: activeTab.value === 'student' ? school.value.trim() : undefined,
+            degree_level: activeTab.value === 'mentor' ? degreeLevel.value : undefined,
+            role: activeTab.value,
+          },
+        },
+      })
+
+      if (supaErr) {
+        throw supaErr
+      }
+
+      alert("สมัครสมาชิกสำเร็จ")
+      navigateTo('/', { replace: true })
+    } catch (fallbackErr: any) {
+      console.error("Error, Register Member!", fallbackErr)
+      errorMessage.value = err.response?.data?.message || fallbackErr?.message || 'ไม่สามารถสมัครสมาชิกได้ในขณะนี้ กรุณาตรวจสอบเซิร์ฟเวอร์ Backend หรือการตั้งค่า Database'
+    }
   } finally {
     loading.value = false
   }
@@ -131,6 +198,18 @@ onMounted(() => {
           </span>
         </header>
 
+        <v-tabs v-model="activeTab" color="primary" grow class="register-tabs mb-4">
+          <v-tab value="student">
+            <v-icon icon="mdi-school-outline" class="mr-1" />
+            นักเรียน / นักศึกษา
+          </v-tab>
+
+          <v-tab value="mentor">
+            <v-icon icon="mdi-account-tie" class="mr-1" />
+            พี่เลี้ยง / Mentor
+          </v-tab>
+        </v-tabs>
+
         <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" closable class="message-alert"
           @click:close="errorMessage = ''">
           {{ errorMessage }}
@@ -142,42 +221,43 @@ onMounted(() => {
 
         <v-form ref="form" class="register-form" @submit.prevent="registerSubmit">
           <v-text-field v-model="username" label="ชื่อผู้ใช้ (Username)" placeholder="เช่น min_student"
-            prepend-inner-icon="mdi-account-circle-outline" autocomplete="username" variant="outlined" density="comfortable"
-            color="primary" :error-messages="error.username" />
+            prepend-inner-icon="mdi-account-circle-outline" autocomplete="username" variant="outlined"
+            density="comfortable" color="primary" :error-messages="error.username" />
 
-          <v-text-field v-model="name" label="ชื่อที่ต้องการให้แสดง" placeholder="เช่น น้องมินท์"
-            prepend-inner-icon="mdi-account-outline" autocomplete="name" variant="outlined" density="comfortable"
-            color="primary" :error-messages="error.name" />
+          <v-text-field v-model="name" label="ชื่อ" placeholder="เช่น มินท์" prepend-inner-icon="mdi-account-outline"
+            autocomplete="given-name" variant="outlined" density="comfortable" color="primary"
+            :error-messages="error.name" />
+
+          <v-text-field v-model="lastName" label="นามสกุล" placeholder="เช่น ใจดี"
+            prepend-inner-icon="mdi-account-outline" autocomplete="family-name" variant="outlined" density="comfortable"
+            color="primary" :error-messages="error.lastName" />
+
+          <v-text-field v-model="dateOfBirth" type="date" label="วันเดือนปีเกิด" prepend-inner-icon="mdi-calendar"
+            variant="outlined" density="comfortable" color="primary" :error-messages="error.dateOfBirth" />
+
+          <v-text-field v-if="activeTab === 'student'" v-model="school" label="โรงเรียน / สถานศึกษา" placeholder="เช่น โรงเรียนเตรียมอุดมศึกษา"
+            prepend-inner-icon="mdi-school-outline" variant="outlined" density="comfortable" color="primary"
+            :error-messages="error.school" />
+
+          <v-select v-if="activeTab === 'mentor'" v-model="degreeLevel" :items="degreeLevels" label="ระดับการศึกษา" placeholder="กรุณาเลือกระดับการศึกษา" persistent-placeholder
+            prepend-inner-icon="mdi-certificate-outline" variant="outlined" density="comfortable" color="primary"
+            :error-messages="error.degreeLevel" />
 
           <v-text-field v-model="email" type="email" label="อีเมล" placeholder="example@email.com"
             prepend-inner-icon="mdi-email-outline" autocomplete="email" variant="outlined" density="comfortable"
             color="primary" :error-messages="error.email" />
 
           <v-text-field v-model="password" :type="showPassword ? 'text' : 'password'" label="รหัสผ่าน"
-            hint="ต้องมีอย่างน้อย 6 ตัวอักษร" prepend-inner-icon="mdi-lock-outline" :append-inner-icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
-            autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
-            :error-messages="error.password" @click:append-inner="showPassword = !showPassword" />
+            hint="ต้องมีอย่างน้อย 6 ตัวอักษร" prepend-inner-icon="mdi-lock-outline"
+            :append-inner-icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" autocomplete="new-password"
+            variant="outlined" density="comfortable" color="primary" :error-messages="error.password"
+            @click:append-inner="showPassword = !showPassword" />
 
           <v-text-field v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
-            label="ยืนยันรหัสผ่าน" prepend-inner-icon="mdi-lock-check-outline" :append-inner-icon="showConfirmPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+            label="ยืนยันรหัสผ่าน" prepend-inner-icon="mdi-lock-check-outline"
+            :append-inner-icon="showConfirmPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
             autocomplete="new-password" variant="outlined" density="comfortable" color="primary"
             :error-messages="error.confirmPassword" @click:append-inner="showConfirmPassword = !showConfirmPassword" />
-
-          <v-checkbox v-model="acceptTerms" color="primary" density="compact" class="terms-checkbox"
-            :rules="[termsRule]" :disabled="loading || Boolean(successMessage)">
-            <template #label>
-              <span class="terms-label">
-                ยอมรับ
-                <NuxtLink to="/terms" target="_blank" @click.stop>
-                  ข้อตกลงการใช้งาน
-                </NuxtLink>
-                และ
-                <NuxtLink to="/privacy" target="_blank" @click.stop>
-                  นโยบายความเป็นส่วนตัว
-                </NuxtLink>
-              </span>
-            </template>
-          </v-checkbox>
 
           <v-btn v-if="!successMessage" type="submit" block size="large" class="register-submit" :loading="loading">
             <v-icon icon="mdi-account-plus-outline" size="19" class="mr-2" />
